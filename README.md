@@ -1,111 +1,87 @@
-# 🏛️ Rigorous ERP Builder — AI Agent Skill
+# rigorous-erp-builder
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Antigravity Skill](https://img.shields.io/badge/Antigravity-Skill-orange)](https://github.com/bottamedigianluca/rigorous-erp-builder)
-[![Category: Enterprise AI](https://img.shields.io/badge/Domain-ERP%20%26%20Accounting-purple)](#)
-[![Zero Float](https://img.shields.io/badge/Math-Zero--Float%20Decimal-green)](#)
+An engineering guide and agent skill for building production ERPs, billing systems, and accounting engines that don't fall apart during a tax audit.
 
-> **"Stop letting LLMs hallucinate tax laws. Build mission-critical ERPs, accounting engines, and billing systems with zero-hallucination mathematical rigor, regulatory schema ingestion (XSD/JSON/EDI), legacy oracle verification, and keyboard-first UI."**
+Most people asking LLMs to build accounting software end up with toy CRUD apps. Invoicing is not a blog post. If your engine has floating-point drift, drops document numbers, or guesses VAT rules instead of reading legal schemas, you're building a liability.
 
----
-
-## The "Vibecoding Trap" in Accounting Software
-
-When you ask an AI coding agent to *"build an invoicing app"* or *"create an ERP"*, it almost always falls into fatal traps:
-1. **IEEE 754 Floating-Point Corruption:** It uses `float` or JS `number` where `0.1 + 0.2 = 0.30000000000000004`, leading to silent penny drift and ledger imbalance.
-2. **Hallucinated Tax Rules:** It guesses VAT rates, reverse-charge codes, withholding taxes, and exemptions from memory instead of authoritative government specifications.
-3. **Numbering Holes:** It allows deleting documents or fails to guarantee gapless sequential numbering, violating fiscal auditing laws.
-4. **Clumsy Mouse-First UIs:** It builds slow web forms with modal popups that take 45 seconds per document instead of high-speed keyboard grids capable of 3-second data entry.
-5. **No Verification Oracle:** It never verifies calculated amounts against historical production databases or official test validators.
-
-**Rigorous ERP Builder** is a formal skill protocol for AI agents (Antigravity, Claude Code, Cursor, Codex, Windsurf) that eliminates these failures.
+This repository codifies the rules we learned replacing legacy on-premise ERPs with modern native engines.
 
 ---
 
-## 🏛️ The 6 Iron Pillars
+## The 6 Non-Negotiables
 
-```
-  ┌────────────────────────────────────────────────────────────────────────┐
-  │                   THE 6 PILLARS OF MISSION-CRITICAL ERP                │
-  ├────────────────────────────────────────────────────────────────────────┤
-  │ 1. REGULATORY GROUND TRUTH    Official government XSD / legal specs    │
-  │ 2. FIXED-POINT FINANCIAL MATH Zero floating-point arithmetic           │
-  │ 3. NUMBERING & IMMUTABILITY   Zero gaps, audit logs, append-only       │
-  │ 4. ORACLE & MUTATION TESTING  0-diff historical replay & schema fuzzing│
-  │ 5. KEYBOARD-FIRST REALITY     High-speed POS/warehouse data entry     │
-  │ 6. DURABLE STORAGE & 3-2-1 BK SQLite WAL / Postgres + encrypted cloud  │
-  └────────────────────────────────────────────────────────────────────────┘
-```
+### 1. Ingest official government schemas (XSD / UBL / EDIFACT)
+Never let an LLM guess tax law, reverse charges, or withholding rates from its training weights. 
+Download the jurisdiction's authoritative machine-readable schema directly into your project:
+* **Italy:** Agenzia delle Entrate / Sogei (`Schema_VFPR12.xsd`, `Schema_VFSM10.xsd`, TD01–TD28)
+* **EU:** Peppol BIS Billing 3.0 / EN 16931 (UBL 2.1, Schematron)
+* **France:** Factur-X / Chorus Pro (CII hybrid PDF/A-3)
+* **Spain:** TicketBAI / SII (AEAT XML)
+* **Germany:** XRechnung / ZUGFeRD 2.0+
+* **US / Global:** GAAP ledgers, OECD SAF-T, local tax tables
 
-### 1. Regulatory Ground Truth (Official Schemas First)
-The agent is forbidden from guessing national tax rules. It must locate and ingest primary machine-readable artifacts:
-- **Italy:** Agenzia delle Entrate / Sogei (`Schema_VFPR12.xsd`, `Schema_VFSM10.xsd`, TD01–TD28).
-- **Pan-European / International:** Peppol BIS Billing 3.0 (EN 16931, UBL 2.1, Schematron).
-- **France:** Chorus Pro / Factur-X (CII / ZUGFeRD PDF/A-3).
-- **Spain:** TicketBAI / SII (AEAT XML with cryptographic chaining).
-- **Germany:** XRechnung / ZUGFeRD 2.0+.
-- **Poland:** KSeF (Krajowy System e-Faktur).
-- **Latin America:** Mexico (CFDI 4.0), Brazil (NF-e).
-- **Middle East:** Saudi Arabia ZATCA Phase 2 (UBL 2.1 + ECDSA signatures).
+### 2. Zero-float math (Fixed-point only)
+IEEE 754 floats (`float`, `double`, JS `number`) will ruin your ledger (`0.1 + 0.2 != 0.3`).
+* Use 128-bit fixed-point decimals (`rust_decimal::Decimal`, `shopspring/decimal`, `BigDecimal`).
+* Explicitly enforce Banker's Rounding (*Half-Even*) to eliminate statistical drift.
+* Implement residual penny-balancing (`Arrotondamento`) when line-by-line VAT doesn't equal vertical document-level tax summaries.
 
-### 2. Zero-Float Financial Math
-- Strict ban on floating-point primitives.
-- Mandatory 128-bit fixed-point decimal math (`rust_decimal::Decimal`, `shopspring/decimal`, `BigDecimal`).
-- Banker's Rounding (*Half-Even*) vs Commercial (*Half-Up*).
-- Line vs Document VAT balancing with explicit **Residual Penny-Balancing** (`Arrotondamento`).
+### 3. Numbering immutability & zero holes
+Tax authorities treat missing invoice numbers as potential tax evasion.
+* No `DELETE` queries on committed invoices. Storno / Credit Note only.
+* Numbering (`Year / Series / Number`) must be strictly gapless.
+* Use the Outbox pattern for asynchronous external transmission (SdI, Peppol, bank feeds). Never dual-write to DB and external APIs in the same transaction.
 
-### 3. Numbering Integrity & State Machine
-- Strict document lifecycle: `Draft` $\to$ `Committed` $\to$ `Sent` $\to$ `Reconciled / Reversal`.
-- Absolute zero numbering holes per series. Deletion of committed invoices is forbidden (formal Credit Notes / Storni only).
-- Outbox pattern for zero-lock, idempotent asynchronous external dispatch.
+### 4. Oracle testing & mutation fuzzing
+If you're replacing a legacy system (Arca, SAP, Dynamics, QuickBooks), prove zero regression:
+* **Historical replay:** Re-run 10,000+ real archived invoices through your engine. Assert $0.00 difference across headers, VAT groups, and payment terms.
+* **Mutation fuzzing:** Take valid invoices and systematically mutate tags (remove required nodes, duplicate fields, invert sequences, inject invalid calendar dates like Feb 30). Verify your validator agrees with the government/reference engine on every single rejection.
 
-### 4. Oracle Verification & Mutation Testing
-- **0-Difference Historical Replay:** Replaying thousands of real historical invoices from legacy systems (SAP, Arca, Dynamics, QuickBooks) and asserting $0$ cent differences across totals, tax groups, and payment terms.
-- **Systematic Mutation Testing:** Fuzzing schema boundaries by generating 40,000+ intentionally mutated documents (missing mandatory tags, duplicate elements, inverted tag sequences, invalid calendar dates, out-of-range decimals) and proving 100% agreement with government validators.
+### 5. Keyboard-first UX
+Cashiers and warehouse pickers hate mice. If an operator has to click through modals to log 50 line items, your software failed.
+* `Enter` advances to the next cell with text auto-selected.
+* `F3` opens rapid substring lookup (contains search, not prefix-only).
+* `F8` multi-row picker from prior delivery notes or orders.
+* Direct OS print spooler bypass (`winspool.drv`, CUPS, raw ESC/POS, ZPL) to skip browser print preview dialogs entirely.
+* Local auto-save draft with recovery on crash or accidental browser tab close.
 
-### 5. Keyboard-First Warehouse & POS Ergonomics
-- `Enter` advances focus and auto-selects text for instant overwriting.
-- `F3`: Omnipresent rapid substring search (`contiene`, not prefix-only).
-- `F8`: Multi-row picker for importing items from orders/delivery notes.
-- Direct hardware spooler bypass (Win32 Spooler `winspool.drv`, CUPS, raw ESC/POS, ZPL) eliminating browser print dialogs.
-- Anti-crash autosave with uncommitted draft recovery on cold startup.
-
-### 6. Durable Storage & Automated 3-2-1 Backups
-- Lightweight ACID storage: SQLite WAL mode with sub-second zero-lock hot snapshots (`VACUUM INTO`).
-- Grandfather-Father-Son retention (14 daily, 4 weekly, 12 monthly).
-- Client-side AES-256-GCM encryption with automated mirroring across 2 independent cloud accounts.
+### 6. Durable local storage & automated 3-2-1 backups
+Keep it self-contained:
+* SQLite in WAL mode handles thousands of writes per second with sub-second zero-lock snapshots via `VACUUM INTO`.
+* Local rotation: 14 daily, 4 weekly, 12 monthly.
+* Client-side AES-256 encryption before offsite sync to 2 separate cloud accounts.
 
 ---
 
-## 🚀 How to Install & Use
+## Usage
 
-### With Google Antigravity
-Clone or copy this folder into your skills directory:
+### In Google Antigravity
+Clone to your local skills directory:
 ```bash
 git clone https://github.com/bottamedigianluca/rigorous-erp-builder.git ~/.gemini/config/skills/rigorous-erp-builder
 ```
-Then simply instruct your agent:
-> *"Use the `rigorous-erp-builder` skill to design and implement an e-invoicing and accounting engine for [Jurisdiction / Country] adhering to all 6 pillars."*
+Prompt:
+> "Use the rigorous-erp-builder skill to architect the billing engine for [Country / Sector]."
 
-### With Claude Code / Codex / Cursor / Windsurf
-Add `SKILL.md` to your project instructions or system prompt (`.claude.md`, `.cursorrules`, or `AGENTS.md`).
+### In Claude Code / Cursor / Windsurf / Codex
+Add `SKILL.md` to your custom system instructions or repository rules (`.cursorrules`, `CLAUDE.md`, or `AGENTS.md`).
 
 ---
 
-## 📂 Repository Structure
+## Directory Layout
 
 ```
-rigorous-erp-builder/
-├── SKILL.md                                 # Master protocol & execution guide
-├── README.md                                # Documentation & overview
-├── LICENSE                                  # MIT License
+.
+├── SKILL.md                                 # Core agent skill instructions
+├── README.md
+├── LICENSE                                  # MIT
+├── scripts/
+│   └── verify_financial_math.py             # Math invariants test suite
 └── references/
-    ├── jurisdiction-discovery.md            # Tax authority discovery table & rules
-    ├── financial-math-and-rounding.md       # Fixed-point math, rounding, VAT balancing
-    └── keyboard-first-ux.md                 # Ergonomics, keybindings, spooler printing
+    ├── jurisdiction-discovery.md            # Tax authority reference table
+    ├── financial-math-and-rounding.md       # Rounding algorithms & VAT reconciliation
+    └── keyboard-first-ux.md                 # POS/Warehouse data entry patterns
 ```
 
----
-
-## 📄 License
-MIT © [Gianluca Bottamedi](https://github.com/bottamedigianluca)
+## License
+MIT
